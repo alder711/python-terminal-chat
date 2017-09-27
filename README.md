@@ -9,7 +9,7 @@ Simple Python/ncurses-powered server-client(s) chat for the terminal.
 Server Usage
 ------------
 
-./chat_server.py [-h][-p PORT]
+    ./chat_server.py [-h][-p PORT]
 
     -c, --clients=  maximum number of clients to allow connection (default 5)
     -h              display this help
@@ -20,7 +20,7 @@ Server Usage
 Client Usage
 ------------
 
-./chat_client.py [-h][HOST PORT [-nt]]
+    ./chat_client.py [-h][HOST PORT [-nt]]
 
     -h          display this help
     HOST        hostname to connect to
