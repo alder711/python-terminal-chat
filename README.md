@@ -1,4 +1,4 @@
 Python Terminal Chat
 ====================
 
-Simple Python-powered server-client(s) chat for the terminal.
+Simple Python/ncurses-powered server-client(s) chat for the terminal.
