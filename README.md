@@ -1,29 +1,19 @@
 Python Terminal Chat
 ====================
 
-Simple Python/ncurses-powered server-client(s) chat for the terminal.
+Simple Python/ncurses-powered peer-to-peer chat for the terminal.
 
 
 
 
-Server Usage
+Usage
 ------------
 
-    ./chat_server.py [-h][-p PORT]
+    ./chat.py [-chnpqt] OPTIONS
 
     -c, --clients=  maximum number of clients to allow connection (default 5)
     -h              display this help
+    -n, --name==    set name of peer
     -p, --port=     specify port to use (default is 12345)
+    -q, --host=     hostname/IP to connect to (if a peer)
     -t, --type=     specify a protocol to use (default tcp)
-    
-
-Client Usage
-------------
-
-    ./chat_client.py [-h][HOST PORT [-nt]]
-
-    -h          display this help
-    HOST        hostname to connect to
-    PORT        port to connect with
-    -n, --name= set name of client (defalt is Anonymous)
-    -t, --type= set connection type (default is tcp)
