@@ -14,6 +14,36 @@ import socket
 # import system and getopt module for parsing arguments in CLI
 import sys
 import getopt
+# import threading tools for multithreading
+import threading
+
+
+# class for a thread to listen for messages
+class ListenThread(threading.Thread):
+    def __init__(self, threadID, name, socket):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.socket = socket
+
+    def run(self):
+        while True:
+            new_msg = self.socket.recv(1024).decode('ascii')
+            print(new_msg)
+
+# class for a thread to send messages
+class SendThread(threading.Thread):
+    def __init__(self, threadID, name, socket):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.socket = socket
+
+    def run(self):
+        while True:
+            msg = input()
+            self.socket.send(msg.encode('ascii'))
+
 
 
 def main(argv):
@@ -43,6 +73,7 @@ def main(argv):
     PROTOCOL="tcp"
     # name for client
     NAME="Anonymous"
+
 
     # if no parameters or the '-h' parameter, print the usage
     if (len(sys.argv)<=1 or sys.argv[1]=="-h"):
@@ -123,12 +154,18 @@ def main(argv):
                 #print("Connection closed")
                 break
 
-            while True:
-                # send message
-                msg = input()
-                clientsocket.send(msg.encode('ascii'))
-                new_msg = clientsocket.recv(1024).decode('ascii')
-                print(new_msg)
+            # create send and receive threads
+            send_thread = SendThread(1, "Send-Thread", clientsocket)
+            listen_thread = ListenThread(2, "Listen-Thread", clientsocket)
+            # start threads
+            send_thread.start()
+            listen_thread.start()
+            #msg = input()
+            #clientsocket.send(msg.encode('ascii'))
+            #new_msg = clientsocket.recv(1024).decode('ascii')
+            #print(new_msg)
+
+
 
         elif (PROTOCOL == "udp"):
             print("udp")

@@ -15,6 +15,38 @@ import socket
 import sys
 import getopt
 
+# import threading tools for multithreading
+import threading
+
+
+# class for a thread to listen for messages
+class ListenThread(threading.Thread):
+    def __init__(self, threadID, name, socket):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.socket = socket
+
+    def run(self):
+        while True:
+            new_msg = self.socket.recv(1024).decode('ascii')
+            print(new_msg)
+
+# class for a thread to send messages
+class SendThread(threading.Thread):
+    def __init__(self, threadID, name, socket):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.socket = socket
+
+    def run(self):
+        while True:
+            msg = input()
+            self.socket.send(msg.encode('ascii'))
+
+
+
 
 def main(argv):
 
@@ -149,12 +181,12 @@ def main(argv):
             #print("Connection closed")
             break
 
-        while True:
-            # receive message
-            new_msg = clientsocket.recv(1024).decode('ascii')
-            print(new_msg)
-            msg = input()
-            clientsocket.send(msg.encode('ascii'))
+        # create send and receive threads
+        send_thread = SendThread(1, "Send-Thread", clientsocket)
+        listen_thread = ListenThread(2, "Listen-Thread", clientsocket)
+        # start threads
+        send_thread.start()
+        listen_thread.start()
 
     elif (PROTOCOL == "udp"):
         print("udp")
