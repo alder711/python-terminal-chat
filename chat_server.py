@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# This is a simple TCP socket experiment 
+# This is a simple socket experiment 
 # chat server.
 #
 # Version 0.1 as of 26 September 2017
@@ -34,13 +34,19 @@ def main(argv):
     SUCCESS           = 0
     GENERAL_FAILURE   = 1
     INVALID_PARAMETER = 2
+    CONNECTION_ERROR  = 3
 
+    # host
+    HOST = "localhost"
     # port (set to default)
     PORT = 12345
     # protocol (TCP or UDP)
-    PROTOCOL="TCP"
+    PROTOCOL="tcp"
     # number of clients to allow connection
     CLIENTS=5
+
+    # client names
+    client_names = []
 
     # try to get argument list
     try:
@@ -106,30 +112,54 @@ def main(argv):
 
     print("Port:", PORT, "Protocol:", PROTOCOL, "Max Clients:", CLIENTS)
 
-    # socket initialization
-    print("\nCreating socket...")
-    serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # create a socket object
-    print("Getting hostname...")
-    HOST = socket.gethostname()                                         # get local machine name
-    print("Hostname", HOST)
-    print("Binding to port", PORT, "...")
-    serversocket.bind( (HOST,PORT) )                                    # bind to the port
-    print("Server:\t", HOST, "\nPort:\t", PORT)
+    if (PROTOCOL == "tcp"):
+        # try to initialize socket
+        try:
+            # socket initialization
+            print("\nCreating socket...")
+            serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # create a socket object
+            print("Getting hostname...")
+            #HOST = socket.gethostname()                                         # get local machine name
+            print("Hostname", HOST)
+            print("Binding to port", PORT, "...")
+            serversocket.bind( (HOST,PORT) )                                    # bind to the port
+            print("Server:\t", HOST, "\nPort:\t", PORT)
 
-    # listen for client connection (up to 5 requests)
-    print("Listening for client (max " + str(CLIENTS) + ")...")
-    serversocket.listen(CLIENTS)
+            # listen for client connection (up to 5 requests)
+            print("Listening for client (max " + str(CLIENTS) + ")...")
+            serversocket.listen(CLIENTS)
+        except (OSError) as err:
+            print("Error in connecting:", err)
+            sys.exit(CONNECTION_ERROR)
 
-    while True:
-        # establish connection to client
-        clientsocket, addr = serversocket.accept()
-        print("Connection established to", addr)
-        # send message to client
-        msg = "Connection to server established."
-        clientsocket.send(msg.encode('ascii'))
-        # close connection to client
-        clientsocket.close()
-        print("Connection closed")
+        while True:
+            # establish connection to client
+            clientsocket, addr = serversocket.accept()
+            print("Connection established to", addr)
+            # send message to client
+            msg = "Connection to server established."
+            clientsocket.send(msg.encode('ascii'))
+            # receive name from client
+            new_name = clientsocket.recv(1024).decode('ascii')
+            print("New client connected:", new_name)
+            client_names.append(new_name)
+            
+            # close connection to client
+            #clientsocket.close()
+            #print("Connection closed")
+            break
+
+        while True:
+            # receive message
+            new_msg = clientsocket.recv(1024).decode('ascii')
+            print(new_msg)
+            msg = input()
+            clientsocket.send(msg.encode('ascii'))
+
+    elif (PROTOCOL == "udp"):
+        print("udp")
+    else:
+        print("unrecognized protocol")
 
 
 
