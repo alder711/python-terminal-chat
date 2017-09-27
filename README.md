@@ -1,3 +1,4 @@
-== Python Terminal Chat ==
+Python Terminal Chat
+====================
 
-Simple server-client(s) chat for the terminal.
+Simple Python-powered server-client(s) chat for the terminal.
