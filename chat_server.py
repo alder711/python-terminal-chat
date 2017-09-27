@@ -69,7 +69,7 @@ def main(argv):
     CONNECTION_ERROR  = 3
 
     # host
-    HOST = "localhost"
+    HOST = "0.0.0.0" # '0.0.0.0' binds to all interfaces
     # port (set to default)
     PORT = 12345
     # protocol (TCP or UDP)

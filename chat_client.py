@@ -16,33 +16,89 @@ import sys
 import getopt
 # import threading tools for multithreading
 import threading
+# import curses windowing system
+import curses
 
 
 # class for a thread to listen for messages
 class ListenThread(threading.Thread):
-    def __init__(self, threadID, name, socket):
+    def __init__(self, threadID, name, socket, input_window, display_window):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.socket = socket
+        self.display_window = display_window
+        self.input_window = input_window
 
     def run(self):
+        # get max coordinates of display window
+        self.DISP_Y, self.DISP_X = self.display_window.getmaxyx()
         while True:
-            new_msg = self.socket.recv(1024).decode('ascii')
-            print(new_msg)
+            # get new message from socket
+            new_message = self.socket.recv(1024).decode('ascii')
+            # for each previous line in the display window,
+            for i in range(2,self.DISP_Y-1):
+                # store line
+                old_strs = self.display_window.instr(i,1,self.DISP_X)
+                # rewrite previous line with next line
+                self.display_window.addstr(i-1,1,old_strs)
+            # move cursor to bottom of display window
+            self.display_window.move(self.DISP_Y-2,1)
+            # clear old message here
+            self.display_window.addstr(self.DISP_Y-2,1," "*(self.DISP_X-1))
+            # place new message here
+            self.display_window.addstr(self.DISP_Y-2,1,new_message)
+            # redraw border for diplay window
+            self.display_window.border()
+            # refresh display window
+            self.display_window.refresh(0,0,0,0,self.DISP_Y,self.DISP_X)
+
+            #new_msg = self.socket.recv(1024).decode('ascii')
+            #print(new_msg)
 
 # class for a thread to send messages
 class SendThread(threading.Thread):
-    def __init__(self, threadID, name, socket):
+    def __init__(self, threadID, name, socket, input_window, display_window):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.socket = socket
+        self.display_window = display_window
+        self.input_window = input_window
+        
 
     def run(self):
+        # get max coordinates of display window
+        self.DISP_Y, self.DISP_X = self.display_window.getmaxyx()
         while True:
-            msg = input()
-            self.socket.send(msg.encode('ascii'))
+            # get user input at prompt (wait for return key)
+            self.input_window.getstr(1,1)
+            # store message
+            message = self.input_window.instr(1,1,self.DISP_X)
+            # clear prompt
+            self.input_window.clear()
+            # redraw input window border
+            self.input_window.border()
+            # replace cursor at prompt
+            self.input_window.move(1,1)
+            # refresh input window
+            self.input_window.refresh()
+            # for each previous line in the display window,
+            for i in range(2,self.DISP_Y-1):
+                # store line
+                old_strs = self.display_window.instr(i,1,self.DISP_X)
+                # rewrite previous line with next line
+                self.display_window.addstr(i-1,1,old_strs)
+            # move cursor to bottom of display window
+            self.display_window.move(self.DISP_Y-2,1)
+            # place new message here
+            self.display_window.addstr(self.DISP_Y-2,1,message)
+            # redraw border for diplay window
+            self.display_window.border()
+            # refresh display window
+            self.display_window.refresh(0,0,0,0,self.DISP_Y,self.DISP_X)
+            # send message
+            self.socket.send(message)
 
 
 
@@ -73,6 +129,36 @@ def main(argv):
     PROTOCOL="tcp"
     # name for client
     NAME="Anonymous"
+
+    
+
+    # # forever,
+    # while True:
+    #     # get user input at prompt (wait for return key)
+    #     input_win.getstr(1,1)
+    #     # store message
+    #     message = input_win.instr(1,1,X)
+    #     # clear prompt
+    #     input_win.clear()
+    #     # redraw input window border
+    #     input_win.border()
+    #     # replace cursor at prompt
+    #     input_win.move(1,1)
+    #     # refresh input window
+    #     input_win.refresh()
+    #     # for each previous line in the display window,
+    #     for i in range(2,DISP_Y-1):
+    #         # store line
+    #         old_strs = disp_win.instr(i,1,X)
+    #         # rewrite previous line with next line
+    #         disp_win.addstr(i-1,1,old_strs)
+    #     # move cursor to bottom of display window
+    #     disp_win.move(DISP_Y-2,1)
+    #     # place new message here
+    #     disp_win.addstr(DISP_Y-2,1,message)
+    #     # refresh display window
+    #     disp_win.refresh(0,0,0,0,Y-3,X-2)
+
 
 
     # if no parameters or the '-h' parameter, print the usage
@@ -126,6 +212,7 @@ def main(argv):
 
         print("Host:", HOST, "Port:", PORT, "Protocol:", PROTOCOL, "Name:", NAME, opts, args)
 
+
         if (PROTOCOL == "tcp"):
             # try to initialize socket
             try:
@@ -154,9 +241,32 @@ def main(argv):
                 #print("Connection closed")
                 break
 
+            # create new main window
+            stdscr = curses.initscr()
+            # get max coordinates of main window
+            Y,X = stdscr.getmaxyx()
+            # create window to display chat content
+            disp_win = curses.newpad(Y-3,X)
+            # get max coordinates of display window
+            DISP_Y, DISP_X = disp_win.getmaxyx()
+            # draw border around display window
+            disp_win.border()
+            # create input window for inputting chat
+            input_win = curses.newwin(3,X,Y-3,0)
+            # get max coordinates of input window
+            INPUT_Y, INPUT_X = input_win.getmaxyx()
+            # draw border around input window
+            input_win.border()
+            # move cursor to prompt of input window
+            input_win.move(1,1)
+            # refresh display window
+            disp_win.refresh(0,0,0,0,DISP_Y,DISP_X)
+            # refresh input window
+            input_win.refresh()
+
             # create send and receive threads
-            send_thread = SendThread(1, "Send-Thread", clientsocket)
-            listen_thread = ListenThread(2, "Listen-Thread", clientsocket)
+            send_thread = SendThread(1, "Send-Thread", clientsocket,input_win, disp_win)
+            listen_thread = ListenThread(2, "Listen-Thread", clientsocket,input_win, disp_win)
             # start threads
             send_thread.start()
             listen_thread.start()
