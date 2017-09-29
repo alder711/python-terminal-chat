@@ -19,6 +19,8 @@ import getopt
 import threading
 # import curses windowing system
 import curses
+#import json for serializing messages
+import json
 
 
 # class for a thread to listen for messages
@@ -36,7 +38,10 @@ class ListenThread(threading.Thread):
         self.DISP_Y, self.DISP_X = self.display_window.getmaxyx()
         while True:
             # get new message from socket
-            new_message = self.socket.recv(1024).decode('ascii')
+            new_data = self.socket.recv(1024).decode('ascii')
+            new_data = json.loads(new_data)
+            new_prefix = "["+str(new_data['name'])+"] "
+            new_message = new_prefix+new_data["message"]
             # for each previous line in the display window,
             for i in range(2,self.DISP_Y-1):
                 # store line
@@ -51,6 +56,8 @@ class ListenThread(threading.Thread):
             self.display_window.addstr(self.DISP_Y-2,1,new_message)
             # redraw border for diplay window
             self.display_window.border()
+            # replace cursor at prompt
+            self.input_window.move(1,1)
             # refresh display window
             self.display_window.refresh(0,0,0,0,self.DISP_Y,self.DISP_X)
 
@@ -59,13 +66,14 @@ class ListenThread(threading.Thread):
 
 # class for a thread to send messages
 class SendThread(threading.Thread):
-    def __init__(self, threadID, name, socket, input_window, display_window):
+    def __init__(self, threadID, name, socket, input_window, display_window, local_name):
         threading.Thread.__init__(self)
         self.threadID = threadID
         self.name = name
         self.socket = socket
         self.display_window = display_window
         self.input_window = input_window
+        self.local_name = local_name
         
 
     def run(self):
@@ -75,7 +83,8 @@ class SendThread(threading.Thread):
             # get user input at prompt (wait for return key)
             self.input_window.getstr(1,1)
             # store message
-            message = self.input_window.instr(1,1,self.DISP_X)
+            message = self.input_window.instr(1,1,self.DISP_X).decode('utf-8')
+            data = "{"+"\"name\""+":"+"\""+str(self.local_name)+"\""+","+"\""+"message"+"\""+":"+"\""+str(message)+"\""+"}"
             # clear prompt
             self.input_window.clear()
             # redraw input window border
@@ -93,16 +102,46 @@ class SendThread(threading.Thread):
             # move cursor to bottom of display window
             self.display_window.move(self.DISP_Y-2,1)
             # place new message here
-            self.display_window.addstr(self.DISP_Y-2,1,message)
+            self.display_window.addstr(self.DISP_Y-2,1,"["+self.local_name.upper()+"] "+message)
             # redraw border for diplay window
             self.display_window.border()
             # refresh display window
             self.display_window.refresh(0,0,0,0,self.DISP_Y,self.DISP_X)
             # send message
-            self.socket.send(message)
+            self.socket.send(data.encode('utf-8'))
+
+
+# print text on display window
+def print_disp(window, content, prefix=""):
+    Y,X = window.getmaxyx()
+    # for each previous line in the display window,
+    for i in range(2,Y-1):
+        # store line
+        old_strs = window.instr(i,1,X)
+        # rewrite previous line with next line
+        window.addstr(i-1,1,old_strs)
+    # move cursor to bottom of display window
+    window.move(Y-2,1)
+    # place new content here
+    window.addstr(Y-2,1,prefix+" "+content)
+    # redraw border for diplay window
+    window.border()
+    window.refresh(0,0,0,0,Y,X)
 
 
 
+# clean up all sockets and windows
+def cleanup(sockets, windows=[]):
+    # close socket connections
+    for socket in sockets:
+        socket.close()
+    for window in windows:
+        stdscr.keypad(False)
+    curses.echo()
+    curses.endwin()
+    curses.nocbreak()
+    #peersocket.close()
+    #print("Connection closed")
 
 def main(argv):
 
@@ -126,6 +165,10 @@ def main(argv):
     INVALID_PARAMETER = 2
     CONNECTION_ERROR  = 3
 
+    # categories for info
+    INFO = "[INFO]"
+    ERR  = "[ERR] "
+
     # host
     HOST = "" # optional: can be just server
     # local host
@@ -143,7 +186,7 @@ def main(argv):
     hostsocket = "";
 
     # peer names
-    peer_names = []
+    peer_names = ["You"]
 
     # try to get argument list
     try:
@@ -226,7 +269,32 @@ def main(argv):
             print("Invalid argument(s):", arg)
             sys.exit(INVALID_PARAMETER)
 
-    print("Host:", HOST, "Port:", PORT, "Protocol:", PROTOCOL, "Max Peers:", PEERS)
+    
+    # create new main window
+    stdscr = curses.initscr()
+    # get max coordinates of main window
+    Y,X = stdscr.getmaxyx()
+    # create window to display chat content
+    disp_win = curses.newpad(Y-3,X)
+    # get max coordinates of display window
+    DISP_Y, DISP_X = disp_win.getmaxyx()
+    # draw border around display window
+    disp_win.border()
+    # create input window for inputting chat
+    input_win = curses.newwin(3,X,Y-3,0)
+    # get max coordinates of input window
+    INPUT_Y, INPUT_X = input_win.getmaxyx()
+    # draw border around input window
+    input_win.border()
+    # move cursor to prompt of input window
+    input_win.move(1,1)
+    # refresh display window
+    disp_win.refresh(0,0,0,0,DISP_Y,DISP_X)
+    # refresh input window
+    input_win.refresh()
+
+    print_disp(disp_win,"Host: "+str(HOST)+"Port: "+str(PORT)+" Protocol: "+str(PROTOCOL)+" Max Peers: "+str(PEERS), INFO)
+
 
     if (PROTOCOL == "tcp"):
         # try to initialize socket
@@ -234,41 +302,45 @@ def main(argv):
             # if the host,
             if (HOST == ""):
                 # socket initialization for local host
-                print("\nCreating local host socket...")
+                print_disp(disp_win,"\nCreating local host socket...",INFO)
                 hostsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # create a socket object
-                print("Getting local hostname...")
-                print("Local hostname", LOCALHOST)
-                print("Binding to port", PORT, "...")
+                print_disp(disp_win,"Getting local hostname...",INFO)
+                print_disp(disp_win,"Local hostname"+str(LOCALHOST),INFO)
+                print_disp(disp_win,"Binding to port "+str(PORT)+"...",INFO)
                 hostsocket.bind( (LOCALHOST,PORT) )                             # bind to the port
-                print("Local host:\t", LOCALHOST, "\nPort:\t", PORT)
+                print_disp(disp_win,"Local host:\t"+str(LOCALHOST)+"\nPort:\t"+str(PORT),INFO)
                 # listen for client connection (up to 5 requests)
-                print("Listening for peer (max " + str(PEERS) + ")...")
+                print_disp(disp_win,"Listening for peer (max "+str(PEERS)+")...",INFO)
                 hostsocket.listen(PEERS)
             # if the peer,
             else:
                 # socket initialization for peer(s) if HOST specified
-                print("\nCreating peer(s) socket...")
+                print_disp(disp_win,"\nCreating peer(s) socket...",INFO)
                 peersocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # create a socket object
-                print("Connecting to peer", HOST, "with port", PORT, "...")
+                print_disp(disp_win,"Connecting to peer "+str(HOST)+" with port "+str(PORT)+"...",INFO)
                 peersocket.connect( (HOST,PORT) )                                 # actively initiate TCP connection with host and port
         except (OSError) as err:
-            print("Error in connecting:", err)
+            print_disp(disp_win,"Error in connecting:"+str(err),ERR)
+            cleanup([hostsocket,peersocket])
             sys.exit(CONNECTION_ERROR)
+
+        
+
 
         while True:
             # if the host,
             if (HOST == ""):
                 # establish connection to client
                 peersocket, addr = hostsocket.accept()
-                print("Connection established to", addr)
+                print_disp(disp_win, "Connection established to "+str(addr),INFO)
                 # send message to client
                 msg = "Connection to server established."
                 peersocket.send(msg.encode('ascii'))
                 # receive name from client
                 new_name = peersocket.recv(1024).decode('ascii')
-                print("New client connected:", new_name)
+                print_disp(disp_win,"New peer connected:"+str(new_name),INFO)
                 peer_names.append(new_name)
-            # if the peer,
+            #if the peer,
             # else:
             #     # establish connection to host
             #     hostsocket, addr = peersocket.accept()
@@ -278,40 +350,15 @@ def main(argv):
             #     peersocket.send(msg.encode('ascii'))
             #     # receive name from client
             #     new_name = peersocket.recv(1024).decode('ascii')
-            #     print("New client connected:", new_name)
+            #     print_disp(disp_win,"New client connected: "+str(new_name))
             #     peer_names.append(new_name)
             
-            # close connection to client
-            #peersocket.close()
-            #print("Connection closed")
             break
 
-        # create new main window
-        stdscr = curses.initscr()
-        # get max coordinates of main window
-        Y,X = stdscr.getmaxyx()
-        # create window to display chat content
-        disp_win = curses.newpad(Y-3,X)
-        # get max coordinates of display window
-        DISP_Y, DISP_X = disp_win.getmaxyx()
-        # draw border around display window
-        disp_win.border()
-        # create input window for inputting chat
-        input_win = curses.newwin(3,X,Y-3,0)
-        # get max coordinates of input window
-        INPUT_Y, INPUT_X = input_win.getmaxyx()
-        # draw border around input window
-        input_win.border()
-        # move cursor to prompt of input window
-        input_win.move(1,1)
-        # refresh display window
-        disp_win.refresh(0,0,0,0,DISP_Y,DISP_X)
-        # refresh input window
-        input_win.refresh()
 
 
         # create send and receive threads
-        send_thread = SendThread(1, "Send-Thread", peersocket,input_win, disp_win)
+        send_thread = SendThread(1, "Send-Thread", peersocket,input_win, disp_win, NAME)
         listen_thread = ListenThread(2, "Listen-Thread", peersocket,input_win, disp_win)
         # start threads
         send_thread.start()
