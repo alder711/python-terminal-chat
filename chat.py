@@ -20,6 +20,7 @@ import getopt
 import threading
 # import curses windowing system
 import curses
+from curses import wrapper as cwrap
 #import json for serializing messages
 import json
 
@@ -75,9 +76,9 @@ class Chat():
 		# peer names
 		self.peer_names = []
 
-		# try to start main()
+		# try to start main() with curses wrapper
 		try:
-			self.main(self.argv)
+			cwrap(self.main(self.argv))
 		# if keyboard interrupt,
 		except KeyboardInterrupt:
 			# cleanly exit
@@ -220,10 +221,10 @@ class Chat():
 		# for each window,
 		for window in windows:
 			stdscr.keypad(False)
-		# be able to echo keys to screen
-		curses.echo()
 		# react to keys instantly
 		curses.nocbreak()
+		# be able to echo keys to screen
+		curses.echo()
 		# end curses windows
 		curses.endwin()
 		#peersocket.close()
@@ -236,6 +237,8 @@ class Chat():
 		self.cleanup([self.hostsocket,self.peersocket])
 		# print interrupt
 		print("Interrupt signal detected.")
+		# clear out any other extra curses stuff
+		curses.endwin()
 		# exit successfully
 		sys.exit(self.SUCCESS)
 
