@@ -75,8 +75,13 @@ class Chat():
 		# peer names
 		self.peer_names = []
 
-		# start main()
-		self.main(self.argv)
+		# try to start main()
+		try:
+			self.main(self.argv)
+		# if keyboard interrupt,
+		except KeyboardInterrupt:
+			# cleanly exit
+			self.close()
 
 	###################################################################################
 	############### THREAD OBJECTS ####################################################
@@ -204,7 +209,6 @@ class Chat():
 			window.refresh(0,0,0,0,Y,X)
 
 
-
 	# clean up all sockets and windows
 	def cleanup(self, sockets, windows=[]):
 		# for each socket,
@@ -216,12 +220,24 @@ class Chat():
 		# for each window,
 		for window in windows:
 			stdscr.keypad(False)
+		# be able to echo keys to screen
 		curses.echo()
-		curses.endwin()
+		# react to keys instantly
 		curses.nocbreak()
+		# end curses windows
+		curses.endwin()
 		#peersocket.close()
 		#print("Connection closed")
 
+
+	# cleanly close program
+	def close(self):
+		# clean up sockets
+		self.cleanup([self.hostsocket,self.peersocket])
+		# print interrupt
+		print("Interrupt signal detected.")
+		# exit successfully
+		sys.exit(self.SUCCESS)
 
 
 	###################################################################################
@@ -452,5 +468,5 @@ class Chat():
 
 if __name__ == "__main__":
 	#print(sys.argv[1:])
+	# create new Chat object to run
 	runner = Chat(sys.argv[1:])
-
