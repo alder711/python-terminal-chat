@@ -72,6 +72,8 @@ class Chat():
 		# sockets
 		self.peersocket = None
 		self.hostsocket = None
+		# main window
+		self.mainWindow = None
 
 		# peer names
 		self.peer_names = []
@@ -220,12 +222,16 @@ class Chat():
 				socket.close()
 		# for each window,
 		for window in windows:
-			stdscr.keypad(False)
+			self.mainWindow.keypad(False)
 		# react to keys instantly
 		curses.nocbreak()
+		# disable curses handling of  keypad
+		self.mainWindow.keypad(False)
 		# be able to echo keys to screen
 		curses.echo()
 		# end curses windows
+		curses.endwin()
+		# clear out any other extra curses stuff
 		curses.endwin()
 		#peersocket.close()
 		#print("Connection closed")
@@ -237,8 +243,6 @@ class Chat():
 		self.cleanup([self.hostsocket,self.peersocket])
 		# print interrupt
 		print("Interrupt signal detected.")
-		# clear out any other extra curses stuff
-		curses.endwin()
 		# exit successfully
 		sys.exit(self.SUCCESS)
 
@@ -354,9 +358,9 @@ class Chat():
 
 		
 		# create new main window
-		stdscr = curses.initscr()
+		self.mainWindow = curses.initscr()
 		# get max coordinates of main window
-		Y,X = stdscr.getmaxyx()
+		Y,X = self.mainWindow.getmaxyx()
 		# create window to display chat content
 		disp_win = curses.newpad(Y-3,X)
 		# get max coordinates of display window
