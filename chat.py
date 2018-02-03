@@ -3,7 +3,7 @@
 # This is a simple socket experiment 
 # chat for peer-to-peer.
 #
-# Version 0.1 as of 27 September 2017
+# Version 0.2 as of 02 February 2018
 #
 # Created by Trevor Bautista
 #
@@ -11,6 +11,7 @@
 
 # import the socket module 
 import socket
+from socket import error as socket_error
 # import system and getopt module for parsing arguments in CLI
 import sys
 import getopt
@@ -35,10 +36,12 @@ class Chat():
 		------------------------------------
 		-c, --clients=  maximum number of peers to allow connection (default 5)
 		-h              display this help
-		-n, --name=     set name of peer
-		-q, --host=     hostname/IP to connect to (default is 0.0.0.0)
-		-p, --port=     specify a port to use (default 12345)
-		-t, --type=     specify a protocol to use (default tcp)
+		-n, --name=     set name of local peer
+		-q, --lhost=    local hostname/IP to connect with (default is 0.0.0.0)
+		-p, --lport=    specify a local port to listen with (default 12345)
+		-r, --rhost=    specify a remote hostname/IP to connect to
+		-s, --rport=    specify a remote port to connect to
+		-t, --type=     specify a protocol to use (default tcp) [tcp|udp]
 	"""
 
 		# exit codes
@@ -47,25 +50,27 @@ class Chat():
 		self.INVALID_PARAMETER = 2
 		self.CONNECTION_ERROR  = 3
 
-		# categories for info
+		# categories for info in chat window
 		self.INFO = "[INFO]"
 		self.ERR  = "[ERR] "
 
-		# host
-		self.HOST = "" # optional: can be just server
-		# local host
+		# remote hostname/IP to connect to (set to nothing initially, since no initial server)
+		self.REMOTEHOST = "" # optional: can be just server
+		# local hostname/IP to connect with
 		self.LOCALHOST = "0.0.0.0" # '0.0.0.0' binds to all interfaces
-		# port (set to default)
-		self.PORT = 12345
-		# protocol (TCP or UDP)
+		# port to listen on (set to default)
+		self.LISTENPORT = 12345
+		# port to send to (set to invalid port initially, since no initial server)
+		self.SENDPORT = 0
+		# protocol to use (TCP or UDP) (default tcp)
 		self.PROTOCOL="tcp"
-		# name of peer
+		# name of local chat peer (for chat name)
 		self.NAME="Anonymous"
 		# number of peers to allow connection
 		self.PEERS=5
 		# sockets
-		self.peersocket = ""
-		self.hostsocket = "";
+		self.peersocket = None
+		self.hostsocket = None
 
 		# peer names
 		self.peer_names = []
@@ -191,9 +196,13 @@ class Chat():
 
 	# clean up all sockets and windows
 	def cleanup(self, sockets, windows=[]):
-	    # close socket connections
+	    # for each socket,
 	    for socket in sockets:
-	        socket.close()
+	    	# if socket is initialized,
+	    	if (socket != None):
+	    		# close socket
+	        	socket.close()
+	    # for each window,
 	    for window in windows:
 	        stdscr.keypad(False)
 	    curses.echo()
@@ -212,7 +221,7 @@ class Chat():
 	def main(self, argv):
 	    # try to get argument list
 	    try:
-	        opts, args = getopt.getopt(argv,"c:hn:p:q:t:",["clients=","name=","host=","port=","type="])
+	        opts, args = getopt.getopt(argv,"c:hn:p:q:t:",["clients=","name=","lhost=","lport=","rhost=","rport=","type="])
 	    # if error in getting arguments,
 	    except getopt.GetoptError:
 	        # print usage and exit with exit code for general failure
@@ -249,29 +258,52 @@ class Chat():
 	                print("Invalid name.")
 	                print(self.self.usage)
 	                sys.exit(self.self.INVALID_PARAMETER)
-	        # if port option,
-	        elif (opt in ("-p","--port")):
+	        # if (listen) port option,
+	        elif (opt in ("-p","--lport")):
 	            # test if integer
 	            try:
 	                val = int(arg)
 	            # if not integer,
 	            except ValueError:
 	                # notify user and exit with exit code for invalid parameter
-	                print("Invalid port", arg)
+	                print("Invalid listen port", arg)
 	                print(self.usage)
 	                sys.exit(self.INVALID_PARAMETER)
 	            # set port
-	            self.PORT = int(arg) 
-	        # if port option,
-	        elif (opt in ("-q","--host")):
+	            self.LISTENPORT = int(arg) 
+	        # if local hostname/IP option,
+	        elif (opt in ("-q","--lhost")):
 	            # try to assign host
 	            try:
-	                self.HOST = arg
+	                self.LOCALHOST = arg
 	            # if type exception, let user know and exit with exit code for invalid parameter
 	            except (TypeError, ValueError):
-	                print("Invalid host.")
+	                print("Invalid local host.")
 	                print(self.usage)
 	                sys.exit(self.INVALID_PARAMETER)
+	        # if remote hostname/IP option,
+	        elif (opt in ("-r","--rhost")):
+	            # try to assign host
+	            try:
+	                self.REMOTEHOST = arg
+	            # if type exception, let user know and exit with exit code for invalid parameter
+	            except (TypeError, ValueError):
+	                print("Invalid remote host.")
+	                print(self.usage)
+	                sys.exit(self.INVALID_PARAMETER)
+	        # if (remote) port option,
+	        elif (opt in ("-s","--rport")):
+	            # test if integer
+	            try:
+	                val = int(arg)
+	            # if not integer,
+	            except ValueError:
+	                # notify user and exit with exit code for invalid parameter
+	                print("Invalid remote port", arg)
+	                print(self.usage)
+	                sys.exit(self.INVALID_PARAMETER)
+	            # set remote port
+	            self.SENDPORT = int(arg) 
 	        # if protocol option,
 	        elif (opt in ("-t","--protocol")):
 	            # if 'tcp' option, set protocol to tcp
@@ -315,33 +347,33 @@ class Chat():
 	    # refresh input window
 	    input_win.refresh()
 
-	    self.print_disp(disp_win,"Host: "+str(self.HOST)+"Port: "+str(self.PORT)+" Protocol: "+str(self.PROTOCOL)+" Max Peers: "+str(self.PEERS), self.INFO)
+	    self.print_disp(disp_win,"Local Host/Port: "+str(self.LOCALHOST)+":"+str(self.LISTENPORT)+" Protocol: "+str(self.PROTOCOL)+" Max Peers: "+str(self.PEERS), self.INFO)
 
 
 	    if (self.PROTOCOL == "tcp"):
 	        # try to initialize socket
 	        try:
-	            # if the host,
-	            if (self.HOST == ""):
+	            # if the host (no initial connection attempt to remote peer),
+	            if (self.REMOTEHOST == ""):
 	                # socket initialization for local host
 	                self.print_disp(disp_win,"\nCreating local host socket...",self.INFO)
 	                hostsocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # create a socket object
 	                self.print_disp(disp_win,"Getting local hostname...",self.INFO)
 	                self.print_disp(disp_win,"Local hostname"+str(self.LOCALHOST),self.INFO)
-	                self.print_disp(disp_win,"Binding to port "+str(self.PORT)+"...",self.INFO)
-	                hostsocket.bind( (self.LOCALHOST,self.PORT) )                             # bind to the port
-	                self.print_disp(disp_win,"Local host:\t"+str(self.LOCALHOST)+"\nPort:\t"+str(self.PORT),self.INFO)
+	                self.print_disp(disp_win,"Binding to port "+str(self.LISTENPORT)+"...",self.INFO)
+	                hostsocket.bind( (self.LOCALHOST,self.LISTENPORT) )                             # bind to the port
+	                self.print_disp(disp_win,"Local host:\t"+str(self.LOCALHOST)+"\nPort:\t"+str(self.LISTENPORT),self.INFO)
 	                # listen for client connection (up to 5 requests)
 	                self.print_disp(disp_win,"Listening for peer (max "+str(self.PEERS)+")...",self.INFO)
 	                hostsocket.listen(self.PEERS)
-	            # if the peer,
+	            # if the peer (initial connection attempt to remote peer),
 	            else:
 	                # socket initialization for peer(s) if HOST specified
 	                self.print_disp(disp_win,"\nCreating peer(s) socket...",self.INFO)
 	                peersocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)    # create a socket object
-	                self.print_disp(disp_win,"Connecting to peer "+str(self.HOST)+" with port "+str(self.PORT)+"...",self.INFO)
-	                peersocket.connect( (self.HOST,self.PORT) )                                 # actively initiate TCP connection with host and port
-	        except (OSError) as err:
+	                self.print_disp(disp_win,"Connecting to peer "+str(self.REMOTEHOST)+" with port "+str(self.SENDPORT)+"...",self.INFO)
+	                peersocket.connect( (self.REMOTEHOST,self.SENDPORT) )                                 # actively initiate TCP connection with host and port
+	        except (OSError, socket_error, ConnectionRefusedError) as err:
 	            self.print_disp(disp_win,"Error in connecting:"+str(err),self.ERR)
 	            self.cleanup([hostsocket,peersocket])
 	            sys.exit(self.CONNECTION_ERROR)
@@ -350,8 +382,8 @@ class Chat():
 
 
 	        while True:
-	            # if the host,
-	            if (self.HOST == ""):
+	            # if the host (no initial connection was attempted to remote peer),
+	            if (self.REMOTEHOST == ""):
 	                # establish connection to client
 	                peersocket, addr = hostsocket.accept()
 	                self.print_disp(disp_win, "Connection established to "+str(addr),self.INFO)
@@ -380,7 +412,7 @@ class Chat():
 
 
 	        # create send and receive threads
-	        send_thread = self.SendThread(1, "Send-Thread", peersocket,input_win, disp_win, NAME)
+	        send_thread = self.SendThread(1, "Send-Thread", peersocket,input_win, disp_win, self.NAME)
 	        listen_thread = self.ListenThread(2, "Listen-Thread", peersocket,input_win, disp_win)
 	        # start threads
 	        send_thread.start()
